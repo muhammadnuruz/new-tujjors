@@ -10,8 +10,6 @@ import CartDrawer from '../components/CartDrawer'
 import ProductCard, { ProductCardSkeleton } from '../components/ProductCard'
 import StoreHeader, {
   ALL_CATEGORIES,
-  ALL_SUBCATEGORIES,
-  UNCATEGORIZED_SUBCATEGORY,
 } from '../components/StoreHeader.jsx'
 import { formatCount } from '../lib/format'
 import { submitDealerOrder } from '../lib/orders'
@@ -34,11 +32,9 @@ const ToneClasses = {
 
 const clampQuantity = (value) => {
   const parsed = Number.parseInt(value, 10)
-
   if (!Number.isFinite(parsed) || parsed < 1) {
     return 1
   }
-
   return parsed
 }
 
@@ -50,19 +46,15 @@ const normalizeCustomerName = (value) => compactCustomerText(value)
 const normalizeCustomerPhone = (value) => {
   const raw = typeof value === 'string' ? value.trim() : ''
   const digits = raw.replace(/\D/g, '')
-
   if (digits.length === 9) {
     return `+998${digits}`
   }
-
   if (digits.length === 12 && digits.startsWith('998')) {
     return `+${digits}`
   }
-
   if (raw.startsWith('+') && digits) {
     return `+${digits}`
   }
-
   return raw
 }
 
@@ -72,7 +64,6 @@ const validateCustomerForm = (form) => {
   const customerName = normalizeCustomerName(form.customerName)
   const customerPhone = normalizeCustomerPhone(form.customerPhone)
   const errors = {}
-
   if (!customerName) {
     errors.customerName = 'Ism kiritilishi shart.'
   } else if (countLetters(customerName) < 2) {
@@ -80,13 +71,11 @@ const validateCustomerForm = (form) => {
   } else if (/\d/.test(customerName)) {
     errors.customerName = "Ism ichida raqam bo'lmasin."
   }
-
   if (!customerPhone) {
     errors.customerPhone = 'Telefon raqami kiritilishi shart.'
   } else if (!/^\+998\d{9}$/.test(customerPhone)) {
     errors.customerPhone = "Telefon +998901234567 formatida bo'lsin."
   }
-
   return errors
 }
 
@@ -116,22 +105,14 @@ const LoadingGrid = () => (
 
 const resolveDealerAccess = () => {
   if (typeof window === 'undefined') {
-    return {
-      hasAccess: false,
-      dealerId: '',
-    }
+    return { hasAccess: false, dealerId: '' }
   }
-
   const pathSegments = window.location.pathname
     .split('/')
     .map((segment) => segment.trim())
     .filter(Boolean)
   const dealerId = pathSegments[0] || ''
-
-  return {
-    hasAccess: Boolean(dealerId),
-    dealerId,
-  }
+  return { hasAccess: Boolean(dealerId), dealerId }
 }
 
 const StorePage = () => {
@@ -139,11 +120,9 @@ const StorePage = () => {
   const dealerAccess = useMemo(() => resolveDealerAccess(), [])
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
-  const [subCategories, setSubCategories] = useState([])
   const [isProductsLoading, setIsProductsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES)
-  const [selectedSubCategory, setSelectedSubCategory] = useState(ALL_SUBCATEGORIES)
   const [cart, setCart] = useState([])
   const [cartOpen, setCartOpen] = useState(false)
   const [visibleProductCount, setVisibleProductCount] = useState(INITIAL_VISIBLE_PRODUCTS)
@@ -174,40 +153,26 @@ const StorePage = () => {
       if (!dealerAccess.hasAccess) {
         setProducts([])
         setCategories([])
-        setSubCategories([])
-        setStatus({
-          tone: 'error',
-          text: 'No dealer found',
-        })
+        setStatus({ tone: 'error', text: 'No dealer found' })
         setIsProductsLoading(false)
         return
       }
 
       try {
         setIsProductsLoading(true)
-        setStatus({
-          tone: 'info',
-          text: 'Mahsulotlar yuklanmoqda...',
-        })
+        setStatus({ tone: 'info', text: 'Mahsulotlar yuklanmoqda...' })
 
         const salesDocData = await loadSalesDocProducts(dealerAccess.dealerId)
-
-        if (cancelled) {
-          return
-        }
+        if (cancelled) return
 
         setProducts(salesDocData.products)
         setCategories(salesDocData.categories)
-        setSubCategories(salesDocData.subCategories)
         setStatus(null)
       } catch (error) {
-        if (cancelled) {
-          return
-        }
+        if (cancelled) return
 
         setProducts(staticProducts)
         setCategories(fallbackCategories)
-        setSubCategories([])
         setStatus({
           tone: 'error',
           text:
@@ -224,40 +189,20 @@ const StorePage = () => {
 
     fetchProducts()
 
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [dealerAccess.dealerId, dealerAccess.hasAccess, fallbackCategories])
+
   const selectedFilterLabel =
-    selectedCategory === ALL_CATEGORIES
-      ? "Barcha bo'limlar"
-      : selectedSubCategory !== ALL_SUBCATEGORIES
-        ? `${selectedCategory} / ${
-            selectedSubCategory === UNCATEGORIZED_SUBCATEGORY
-              ? "Boshqa bo'limsiz"
-              : selectedSubCategory
-          }`
-        : selectedCategory
+    selectedCategory === ALL_CATEGORIES ? "Barcha bo'limlar" : selectedCategory
 
   const filteredProducts = useMemo(() => {
     const nextProducts = products.filter((product) => {
       if (selectedCategory !== ALL_CATEGORIES && product.category !== selectedCategory) {
         return false
       }
-
-      if (
-        selectedSubCategory !== ALL_SUBCATEGORIES &&
-        (selectedSubCategory === UNCATEGORIZED_SUBCATEGORY
-          ? product.subCategory
-          : product.subCategory !== selectedSubCategory)
-      ) {
-        return false
-      }
-
       if (!deferredSearch) {
         return true
       }
-
       const haystack = `${product.name} ${product.code} ${product.barcode || ''}`.toLowerCase()
       return haystack.includes(deferredSearch)
     })
@@ -271,12 +216,12 @@ const StorePage = () => {
       if (leftSortId !== rightSortId) {
         return leftSortId - rightSortId
       }
-
       return String(leftProduct.name || leftProduct.id).localeCompare(
         String(rightProduct.name || rightProduct.id),
       )
     })
-  }, [deferredSearch, products, selectedCategory, selectedSubCategory])
+  }, [deferredSearch, products, selectedCategory])
+
   const visibleProducts = filteredProducts.slice(0, visibleProductCount)
   const hasMoreProducts = visibleProducts.length < filteredProducts.length
 
@@ -288,11 +233,10 @@ const StorePage = () => {
 
   useEffect(() => {
     setVisibleProductCount(INITIAL_VISIBLE_PRODUCTS)
-  }, [deferredSearch, selectedCategory, selectedSubCategory, products])
+  }, [deferredSearch, selectedCategory, products])
 
   useEffect(() => {
     const trigger = loadMoreTriggerRef.current
-
     if (!trigger || isProductsLoading || !hasMoreProducts) {
       return undefined
     }
@@ -300,47 +244,31 @@ const StorePage = () => {
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries
-
-        if (!entry?.isIntersecting) {
-          return
-        }
-
+        if (!entry?.isIntersecting) return
         startTransition(() => {
           setVisibleProductCount((currentCount) =>
             Math.min(filteredProducts.length, currentCount + VISIBLE_PRODUCTS_STEP),
           )
         })
       },
-      {
-        rootMargin: '900px 0px',
-      },
+      { rootMargin: '900px 0px' },
     )
 
     observer.observe(trigger)
 
-    return () => {
-      observer.disconnect()
-    }
+    return () => { observer.disconnect() }
   }, [filteredProducts.length, hasMoreProducts, isProductsLoading])
 
   const selectAllCategories = () => {
     setSelectedCategory(ALL_CATEGORIES)
-    setSelectedSubCategory(ALL_SUBCATEGORIES)
   }
 
   const selectCategory = (category) => {
     setSelectedCategory(category)
-    setSelectedSubCategory(ALL_SUBCATEGORIES)
-  }
-
-  const selectSubCategory = (category, subCategory) => {
-    setSelectedCategory(category)
-    setSelectedSubCategory(subCategory)
   }
 
   const openQuantityEditor = (product) => {
     const existingItem = cart.find((item) => item.id === product.id)
-
     setQuantityEditor({
       productId: product.id,
       quantity: String(existingItem?.quantity || 1),
@@ -348,32 +276,21 @@ const StorePage = () => {
   }
 
   const closeQuantityEditor = () =>
-    setQuantityEditor({
-      productId: null,
-      quantity: '1',
-    })
+    setQuantityEditor({ productId: null, quantity: '1' })
 
   const updateCartItem = (product, nextQuantity, options = {}) => {
     const { announce = false } = options
     const quantity = clampQuantity(nextQuantity)
-
     setCart((currentCart) => {
-      const nextItem = {
-        ...product,
-        quantity,
-      }
-
+      const nextItem = { ...product, quantity }
       const existingIndex = currentCart.findIndex((item) => item.id === product.id)
-
       if (existingIndex === -1) {
         return [...currentCart, nextItem]
       }
-
       const copy = [...currentCart]
       copy[existingIndex] = nextItem
       return copy
     })
-
     if (announce) {
       setStatus({
         tone: 'success',
@@ -383,10 +300,7 @@ const StorePage = () => {
   }
 
   const changeEditorQuantity = (value) => {
-    setQuantityEditor((currentEditor) => ({
-      ...currentEditor,
-      quantity: value,
-    }))
+    setQuantityEditor((currentEditor) => ({ ...currentEditor, quantity: value }))
   }
 
   const adjustEditorQuantity = (step) => {
@@ -403,13 +317,9 @@ const StorePage = () => {
 
   const removeFromCart = (productId) => {
     setCart((currentCart) => currentCart.filter((item) => item.id !== productId))
-
     setQuantityEditor((currentEditor) =>
       currentEditor.productId === productId
-        ? {
-            productId: null,
-            quantity: '1',
-          }
+        ? { productId: null, quantity: '1' }
         : currentEditor,
     )
   }
@@ -426,28 +336,17 @@ const StorePage = () => {
   const handleCustomerFieldChange = (field, value) => {
     const nextValue =
       field === 'customerPhone' ? value.replace(/[^\d+\s()-]/g, '') : value
-
-    setCustomerForm((currentForm) => ({
-      ...currentForm,
-      [field]: nextValue,
-    }))
+    setCustomerForm((currentForm) => ({ ...currentForm, [field]: nextValue }))
   }
 
   const handleCustomerFieldBlur = (field) => {
-    setTouchedFields((currentTouchedFields) => ({
-      ...currentTouchedFields,
-      [field]: true,
-    }))
+    setTouchedFields((currentTouchedFields) => ({ ...currentTouchedFields, [field]: true }))
   }
 
   const handleSubmit = async () => {
     const normalizedCustomerForm = normalizeCustomerForm(customerForm)
     const nextErrors = validateCustomerForm(normalizedCustomerForm)
-
-    setTouchedFields({
-      customerName: true,
-      customerPhone: true,
-    })
+    setTouchedFields({ customerName: true, customerPhone: true })
 
     if (Object.keys(nextErrors).length > 0) {
       setCustomerForm(normalizedCustomerForm)
@@ -460,7 +359,6 @@ const StorePage = () => {
 
     try {
       setIsSubmitting(true)
-
       const payload = {
         dealerId: dealerAccess.dealerId,
         customer: normalizedCustomerForm,
@@ -468,11 +366,8 @@ const StorePage = () => {
         createdAt: new Date().toISOString(),
         link: dealerAccess.dealerId,
       }
-
       const response = await submitDealerOrder(payload)
-
       window.localStorage.setItem('new-tujjors-last-order', JSON.stringify(payload))
-
       setCart([])
       setCartOpen(false)
       closeQuantityEditor()
@@ -480,9 +375,7 @@ const StorePage = () => {
       setTouchedFields({})
       setStatus({
         tone: 'success',
-        text:
-          response?.result?.message ||
-          "Buyurtma dealer serverga yuborildi.",
+        text: response?.result?.message || "Buyurtma dealer serverga yuborildi.",
       })
     } catch (error) {
       const payload = {
@@ -492,9 +385,7 @@ const StorePage = () => {
         createdAt: new Date().toISOString(),
         link: dealerAccess.dealerId,
       }
-
       window.localStorage.setItem('new-tujjors-last-order-failed', JSON.stringify(payload))
-
       setStatus({
         tone: 'error',
         text: `${
@@ -510,17 +401,14 @@ const StorePage = () => {
     <main className="flex min-h-dvh flex-col overflow-hidden bg-app-bg">
       <StoreHeader
         categories={categories}
-        subCategories={subCategories}
         products={products}
         search={search}
         onSearchChange={setSearch}
         totalItems={totalItems}
         onOpenCart={() => setCartOpen(true)}
         selectedCategory={selectedCategory}
-        selectedSubCategory={selectedSubCategory}
         onSelectAllCategories={selectAllCategories}
         onSelectCategory={selectCategory}
-        onSelectSubCategory={selectSubCategory}
       />
 
       <section className="mx-auto mt-24 flex w-full max-w-7xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-4">
