@@ -1,3 +1,5 @@
+import { insecureFetch } from "./httpClient.js";
+
 const compactText = (value) =>
   typeof value === "string" || typeof value === "number"
     ? String(value).trim()
@@ -77,7 +79,7 @@ const readSmartupErrorMessage = (payload, fallbackMessage) => {
 };
 
 const requestSmartup = async (config, path, payload, fallbackMessage) => {
-  const response = await fetch(buildSmartupUrl(config, path), {
+  const response = await insecureFetch(buildSmartupUrl(config, path), {
     method: "POST",
     headers: buildSmartupHeaders(config),
     body: JSON.stringify(payload),

@@ -1,3 +1,5 @@
+import { insecureFetch } from "./httpClient.js";
+
 const defaultPriceTypeId = "d0_2";
 const defaultSmartupServerName = "https://smartup.online";
 const defaultSmartupProjectCode = "trade";
@@ -104,7 +106,7 @@ const readErrorMessage = (payload, fallbackMessage) => {
 
 const fetchDealerInfo = async (baseUrl, dealerId) => {
   const endpoint = new URL(`api/dealers/info/${dealerId}/`, baseUrl);
-  const response = await fetch(endpoint, {
+  const response = await insecureFetch(endpoint, {
     method: "GET",
     headers: { Accept: "application/json" },
   });
@@ -276,6 +278,7 @@ export const fetchDealerConfig = async (dealerId) => {
   const login = compactText(data?.login);
   const password = compactText(data?.password);
   const priceTypeId = compactText(data?.price_type) || defaultPriceTypeId;
+  const discountPriceTypeId = compactText(data?.discount_price_type);
 
   if (!salesDocBaseUrl || !login || !password) {
     throw new Error("Dealer info API returned incomplete SalesDoc credentials.");
@@ -288,6 +291,7 @@ export const fetchDealerConfig = async (dealerId) => {
     login,
     password,
     priceTypeId,
+    discountPriceTypeId,
   };
 
   // View your cleaned credentials here

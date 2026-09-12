@@ -212,6 +212,7 @@ const normalizeProduct = (product, categoryNameById, subCategoryNameById) => {
       compactText(product?.CS_id),
     barcode: compactText(product?.barCode),
     price: resolveProductPrice(product),
+    comparePrice: Number(product?.comparePrice) || 0,
     sortId: resolveProductSortId(product),
     image:
       resolveAbsoluteAssetUrl(product?.imageUrl || product?.thumbUrl) || heroImage,

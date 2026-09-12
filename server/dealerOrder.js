@@ -4,6 +4,7 @@ import {
   isSmartupDealerId,
   resolveDealerId,
 } from "./dealerApi.js";
+import { insecureFetch } from "./httpClient.js";
 import { sendSmartupOrder } from "./smartup.js";
 
 const compactText = (value) =>
@@ -186,7 +187,7 @@ export const sendDealerOrder = async (payload) => {
       quantity: item.quantity,
     })),
   };
-  const response = await fetch(dealerOrderEndpoint, {
+  const response = await insecureFetch(dealerOrderEndpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

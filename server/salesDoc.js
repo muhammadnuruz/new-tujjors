@@ -1,3 +1,5 @@
+import { insecureFetch } from "./httpClient.js";
+
 const defaultPriceTypeId = "d0_2";
 const defaultPageLimit = 100;
 const defaultMaxPageCount = 100;
@@ -55,7 +57,7 @@ const setAuthCacheEntry = (cacheKey, entry) => {
 
 const requestSalesDoc = async (config, payload) => {
   const { salesDocBaseUrl } = getSalesDocCredentials(config);
-  const response = await fetch(salesDocBaseUrl, {
+  const response = await insecureFetch(salesDocBaseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -331,7 +333,8 @@ const buildStockMap = (warehouses) =>
 export const fetchSalesDocCatalog = async (config) => {
   const { salesDocBaseUrl } = getSalesDocCredentials(config);
   const priceTypeId = compactText(config?.priceTypeId) || defaultPriceTypeId;
-  const [categories, subCategories, products, pricesResult, warehouses] =
+  const discountPriceTypeId = compactText(config?.discountPriceTypeId);
+  const [categories, subCategories, products, pricesResult, discountPricesResult, warehouses] =
     await Promise.all([
       fetchPaginatedSalesDocCollection(
         config,
@@ -368,6 +371,14 @@ export const fetchSalesDocCatalog = async (config) => {
           priceType: buildSalesDocEntityRef(priceTypeId),
         }),
       ),
+      discountPriceTypeId
+        ? requestSalesDocWithAuth(
+            config,
+            buildSalesDocPayload("getPrice", {
+              priceType: buildSalesDocEntityRef(discountPriceTypeId),
+            }),
+          )
+        : Promise.resolve(null),
       fetchPaginatedSalesDocCollection(
         config,
         "getStock",
@@ -382,12 +393,20 @@ export const fetchSalesDocCatalog = async (config) => {
     pricesResult,
     "Failed to fetch SalesDoc product prices.",
   );
+  const discountPrices = discountPriceTypeId
+    ? unwrapSalesDocArrayResult(
+        discountPricesResult,
+        "Failed to fetch SalesDoc discount prices.",
+      )
+    : [];
   const priceByProductId = buildPriceMap(prices);
+  const comparePriceByProductId = buildPriceMap(discountPrices);
   const stockByProductId = buildStockMap(warehouses);
   const activeProducts = products.filter(isSalesDocEntityActive);
   const productsWithPrices = activeProducts.map((product) => {
     const productId = resolveSalesDocEntityId(product);
     const resolvedPrice = priceByProductId.get(productId);
+    const resolvedComparePrice = comparePriceByProductId.get(productId);
     const stockLevel = stockByProductId.get(productId) || 0;
 
     return {
@@ -396,6 +415,7 @@ export const fetchSalesDocCatalog = async (config) => {
       thumbUrl: resolveAbsoluteAssetUrl(salesDocBaseUrl, product?.thumbUrl),
       price: Number.isFinite(resolvedPrice) ? resolvedPrice : 0,
       priceValue: Number.isFinite(resolvedPrice) ? resolvedPrice : 0,
+      comparePrice: Number.isFinite(resolvedComparePrice) ? resolvedComparePrice : 0,
       stockLevel,
       price_type: priceTypeId,
     };

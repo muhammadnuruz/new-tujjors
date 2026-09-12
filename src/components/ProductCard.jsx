@@ -1,5 +1,33 @@
+import { useEffect, useState } from 'react'
 import { ShoppingCart } from 'lucide-react'
 import { formatPrice, formatPriceValue } from '../lib/format'
+
+const useMonthEndCountdown = () => {
+  const [text, setText] = useState('')
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date()
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      const remaining = Math.max(0, endOfMonth.getTime() - now.getTime())
+      const totalSeconds = Math.floor(remaining / 1000)
+      const days = Math.floor(totalSeconds / 86400)
+      const hours = Math.floor((totalSeconds % 86400) / 3600)
+      const minutes = Math.floor((totalSeconds % 3600) / 60)
+      const seconds = totalSeconds % 60
+      const pad = (value) => String(value).padStart(2, '0')
+
+      setText(`${days}д ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`)
+    }
+
+    update()
+    const id = setInterval(update, 1000)
+
+    return () => clearInterval(id)
+  }, [])
+
+  return text
+}
 
 const clampQuantity = (value) => {
   const parsed = Number.parseInt(value, 10)
@@ -55,6 +83,10 @@ const ProductCard = ({
 }) => {
   const parsedQuantity = clampQuantity(editorQuantity)
   const priceAmount = formatPriceValue(product.price)
+  const comparePriceAmount = formatPriceValue(product.comparePrice)
+  const countdownText = useMonthEndCountdown()
+  const hasComparePrice = Boolean(product.comparePrice) && product.comparePrice !== product.price
+  const isDiscount = hasComparePrice && product.comparePrice < product.price
 
   return (
     <article className="card-radius max-w-125 mx-auto flex h-full w-full flex-col overflow-hidden border border-app-border bg-app-surface shadow-soft">
@@ -96,17 +128,53 @@ const ProductCard = ({
         {!isEditorOpen && (
           <div className="mt-5 flex items-end justify-between gap-3">
             <div className="min-w-0 mb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-app-text-soft">
-                Narxi:
-              </p>
-              <div className="mt-2 flex flex-wrap items-end gap-2">
-                <span className="whitespace-nowrap text-xl font-black leading-none tracking-[-0.04em] text-app-text md:text-[26px]">
-                  {priceAmount} so&apos;m
-                </span>
-                <span className=" text-base font-bold text-app-text-soft md:text-base">
-                  
-                </span>
-              </div>
+              {hasComparePrice ? (
+                isDiscount ? (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                        СКИДКА
+                      </span>
+                      <span className="whitespace-nowrap text-xs font-medium text-app-text-soft line-through">
+                        {priceAmount} so&apos;m
+                      </span>
+                    </div>
+                    <div className="mt-1 whitespace-nowrap text-xl font-black leading-none tracking-[-0.04em] text-app-accent md:text-[26px]">
+                      {comparePriceAmount} so&apos;m
+                    </div>
+                    <div className="mt-1 whitespace-nowrap text-[10px] text-app-text-soft">
+                      Осталось: <span className="font-semibold text-orange-600">{countdownText}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-2 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-600">
+                      Цена скоро вырастет
+                    </p>
+                    <p className="mt-1 text-[11px] text-app-text">
+                      Ожидается рост цены до{' '}
+                      <span className="font-bold text-orange-600">{comparePriceAmount} so&apos;m</span>
+                    </p>
+                    <p className="mt-1 text-[11px] text-app-text">
+                      Сейчас: <span className="font-bold text-green-700">{priceAmount} so&apos;m</span>
+                    </p>
+                    <p className="mt-1 whitespace-nowrap text-[10px] font-medium text-orange-700">
+                      Осталось: {countdownText}
+                    </p>
+                  </div>
+                )
+              ) : (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-app-text-soft">
+                    Narxi:
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <span className="whitespace-nowrap text-xl font-black leading-none tracking-[-0.04em] text-app-text md:text-[26px]">
+                      {priceAmount} so&apos;m
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <button
