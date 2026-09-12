@@ -87,6 +87,9 @@ const ProductCard = ({
   const countdownText = useMonthEndCountdown()
   const hasComparePrice = Boolean(product.comparePrice) && product.comparePrice !== product.price
   const isDiscount = hasComparePrice && product.comparePrice < product.price
+  const discountPercent = isDiscount
+    ? Math.ceil((1 - product.comparePrice / product.price) * 100)
+    : 0
 
   return (
     <article className="card-radius max-w-125 mx-auto flex h-full w-full flex-col overflow-hidden border border-app-border bg-app-surface shadow-soft">
@@ -131,15 +134,15 @@ const ProductCard = ({
               {hasComparePrice ? (
                 isDiscount ? (
                   <>
-                    <div className="flex items-center gap-1.5">
-                      <span className="rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                        СКИДКА
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-md bg-red-500 px-2 py-0.5 text-xs font-extrabold text-white whitespace-nowrap">
+                        -{discountPercent}%
                       </span>
                       <span className="whitespace-nowrap text-xs font-medium text-app-text-soft line-through">
                         {priceAmount} so&apos;m
                       </span>
                     </div>
-                    <div className="mt-1 whitespace-nowrap text-xl font-black leading-none tracking-[-0.04em] text-app-accent md:text-[26px]">
+                    <div className="mt-1 whitespace-nowrap text-2xl font-black leading-none tracking-[-0.04em] text-app-text md:text-[30px]">
                       {comparePriceAmount} so&apos;m
                     </div>
                     <div className="mt-1 whitespace-nowrap text-[10px] text-app-text-soft">
