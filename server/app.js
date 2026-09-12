@@ -8,6 +8,9 @@ import { fetchDealerConfig, resolveDealerId } from "./dealerApi.js";
 import { sendDealerOrder } from "./dealerOrder.js";
 import { fetchSalesDocCatalog } from "./salesDoc.js";
 import { fetchSmartupCatalog } from "./smartup.js";
+import { getOrSet } from "./cache.js";
+
+const CATALOG_CACHE_TTL_SECONDS = Number(process.env.CATALOG_CACHE_TTL_SECONDS || 300);
 
 dotenv.config({ quiet: true });
 
@@ -42,10 +45,12 @@ app.post("/api/salesdoc/products", async (request, response) => {
       // priceTypeCode: dealerConfig.priceTypeCode,
     });
 
-    const data =
+    const cacheKey = `catalog:${dealerConfig.integration}:${dealerConfig.dealerId}`;
+    const data = await getOrSet(cacheKey, CATALOG_CACHE_TTL_SECONDS, () =>
       dealerConfig.integration === "smartup"
-        ? await fetchSmartupCatalog(dealerConfig)
-        : await fetchSalesDocCatalog(dealerConfig);
+        ? fetchSmartupCatalog(dealerConfig)
+        : fetchSalesDocCatalog(dealerConfig),
+    );
 
     response.json(data);
   } catch (error) {
