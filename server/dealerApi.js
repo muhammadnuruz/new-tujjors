@@ -258,6 +258,7 @@ export const fetchDealerConfig = async (dealerId) => {
         compactText(process.env.SMARTUP_CURRENCY_CODE) ||
         readFirstText(data, smartupConfigKeys.currencyCode) ||
         "860",
+      bonus: data?.bonus || null,
     };
 
     // View your cleaned credentials here
@@ -292,6 +293,7 @@ export const fetchDealerConfig = async (dealerId) => {
     password,
     priceTypeId,
     discountPriceTypeId,
+    bonus: data?.bonus || null,
   };
 
   // View your cleaned credentials here

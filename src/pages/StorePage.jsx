@@ -11,7 +11,7 @@ import ProductCard, { ProductCardSkeleton } from '../components/ProductCard'
 import StoreHeader, {
   ALL_CATEGORIES,
 } from '../components/StoreHeader.jsx'
-import { formatCount } from '../lib/format'
+import { formatCount, formatPrice } from '../lib/format'
 import { submitDealerOrder } from '../lib/orders'
 import { loadSalesDocProducts } from '../lib/salesDoc'
 import { staticCategories, staticProducts } from '../lib/staticStore'
@@ -134,6 +134,7 @@ const StorePage = () => {
   const [touchedFields, setTouchedFields] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [status, setStatus] = useState(null)
+  const [bonus, setBonus] = useState(null)
   const loadMoreTriggerRef = useRef(null)
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
@@ -167,12 +168,14 @@ const StorePage = () => {
 
         setProducts(salesDocData.products)
         setCategories(salesDocData.categories)
+        setBonus(salesDocData.bonus || null)
         setStatus(null)
       } catch (error) {
         if (cancelled) return
 
         setProducts(staticProducts)
         setCategories(fallbackCategories)
+        setBonus(null)
         setStatus({
           tone: 'error',
           text:
@@ -194,6 +197,34 @@ const StorePage = () => {
 
   const selectedFilterLabel =
     selectedCategory === ALL_CATEGORIES ? "Barcha bo'limlar" : selectedCategory
+
+  const selectedCategoryId = useMemo(() => {
+    if (selectedCategory === ALL_CATEGORIES) return null
+    return categories.find((category) => category.name === selectedCategory)?.id || null
+  }, [selectedCategory, categories])
+
+  const activeBonusBrand = useMemo(() => {
+    if (!bonus?.enabled || !bonus?.show_in_catalog || !selectedCategoryId) return null
+    return bonus.brands?.find((brand) => brand.category_id === selectedCategoryId) || null
+  }, [bonus, selectedCategoryId])
+
+  const cartAmountForActiveBrand = useMemo(() => {
+    if (!activeBonusBrand) return 0
+    return cart.reduce((sum, item) => {
+      const itemCategoryId = item.categoryId || item.raw?.category?.CS_id
+      if (itemCategoryId !== activeBonusBrand.category_id) return sum
+      return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0)
+    }, 0)
+  }, [cart, activeBonusBrand])
+
+  const cartPointsForActiveBrand = useMemo(() => {
+    if (!activeBonusBrand) return 0
+    let earned = 0
+    for (const tier of activeBonusBrand.tiers) {
+      if (cartAmountForActiveBrand >= tier.amount) earned = tier.points
+    }
+    return earned
+  }, [activeBonusBrand, cartAmountForActiveBrand])
 
   const filteredProducts = useMemo(() => {
     const nextProducts = products.filter((product) => {
@@ -431,6 +462,75 @@ const StorePage = () => {
             <p className="text-sm font-medium text-app-text-soft">Yuklanmoqda...</p>
           )}
         </div>
+
+        {bonus?.enabled && bonus?.show_in_catalog && bonus.brands?.length > 0 && (
+          <div className="card-radius mb-4 shrink-0 border border-app-border bg-app-surface p-4 shadow-soft">
+            <h2 className="text-base font-extrabold text-app-text">{bonus.title}</h2>
+            {bonus.description && (
+              <p className="mt-1 text-sm text-app-text-soft">{bonus.description}</p>
+            )}
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-125 border-collapse text-sm">
+                <thead>
+                  <tr className="text-left text-app-text-soft">
+                    <th className="py-1 pr-4 font-semibold">Toifa</th>
+                    {bonus.brands[0]?.tiers.map((tier, index) => (
+                      <th key={`tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
+                        {formatPrice(tier.amount)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bonus.brands.map((brand) => (
+                    <tr key={brand.category_id} className="border-t border-app-border text-app-text">
+                      <td className="py-1 pr-4 font-medium whitespace-nowrap">{brand.category_name}</td>
+                      {brand.tiers.map((tier, index) => (
+                        <td key={`${brand.category_id}-tier-${index}`} className="py-1 pr-4 whitespace-nowrap">
+                          {formatCount(tier.points)} ball
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeBonusBrand && (
+          <div className="card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft p-4">
+            <h3 className="text-base font-extrabold text-app-text">{activeBonusBrand.category_name}</h3>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-100 border-collapse text-sm">
+                <thead>
+                  <tr className="text-left text-app-text-soft">
+                    {activeBonusBrand.tiers.map((tier, index) => (
+                      <th key={`active-tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
+                        {formatPrice(tier.amount)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-app-border text-app-text">
+                    {activeBonusBrand.tiers.map((tier, index) => (
+                      <td key={`active-tier-value-${index}`} className="py-1 pr-4 whitespace-nowrap">
+                        {formatCount(tier.points)} ball
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-app-text">
+              Ushbu toifadagi bonusingiz: {formatCount(cartPointsForActiveBrand)} ball
+              <span className="ml-1 font-normal text-app-text-soft">
+                (savatdagi summa: {formatPrice(cartAmountForActiveBrand)})
+              </span>
+            </p>
+          </div>
+        )}
 
         {isProductsLoading ? (
           <LoadingGrid />

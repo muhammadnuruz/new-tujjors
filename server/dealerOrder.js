@@ -36,6 +36,12 @@ const normalizeCustomerPhone = (value) => {
 
 const countLetters = (value) => value.replace(/[^\p{L}]/gu, "").length;
 
+const resolveItemCategoryId = (item) =>
+  compactText(item?.categoryId) ||
+  compactText(item?.category_id) ||
+  compactText(item?.raw?.category?.CS_id) ||
+  compactText(item?.raw?.categoryId);
+
 const getDealerOrderEndpoint = () =>
   compactText(process.env.DEALER_ORDER_ENDPOINT) ||
   `${getDealerApiBaseUrl().replace(/\/$/, "")}/api/dealers/send-order/`;
@@ -185,6 +191,7 @@ export const sendDealerOrder = async (payload) => {
       name: item.name,
       price: item.price,
       quantity: item.quantity,
+      category_id: resolveItemCategoryId(item),
     })),
   };
   const response = await insecureFetch(dealerOrderEndpoint, {

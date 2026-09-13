@@ -52,7 +52,7 @@ app.post("/api/salesdoc/products", async (request, response) => {
         : fetchSalesDocCatalog(dealerConfig),
     );
 
-    response.json(data);
+    response.json({ ...data, bonus: dealerConfig.bonus || null });
   } catch (error) {
     const integrationName = dealerConfig?.integration === "smartup" ? "Smartup" : "SalesDoc";
 

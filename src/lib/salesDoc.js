@@ -359,5 +359,6 @@ export const loadSalesDocProducts = async (dealerId) => {
       (item) => `${item.categoryId || item.category || ''}:${item.id || item.name}`,
     ),
     products: normalizedProducts,
+    bonus: productsPayload?.bonus || null,
   }
 }
