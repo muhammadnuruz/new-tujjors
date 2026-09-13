@@ -2,6 +2,7 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -152,6 +153,8 @@ const StorePage = () => {
   const [scrollActiveCategoryId, setScrollActiveCategoryId] = useState(null)
   const loadMoreTriggerRef = useRef(null)
   const categoryHeaderRefsRef = useRef(new Map())
+  const bonusBannerRef = useRef(null)
+  const [bonusBannerHeight, setBonusBannerHeight] = useState(0)
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
   const customerFormErrors = useMemo(() => validateCustomerForm(customerForm), [customerForm])
@@ -231,6 +234,28 @@ const StorePage = () => {
 
   const effectiveBonusBrand =
     selectedCategory === ALL_CATEGORIES ? scrollActiveBonusBrand : activeBonusBrand
+
+  useLayoutEffect(() => {
+    if (selectedCategory !== ALL_CATEGORIES || !effectiveBonusBrand) {
+      setBonusBannerHeight(0)
+      return undefined
+    }
+
+    const element = bonusBannerRef.current
+    if (!element) {
+      setBonusBannerHeight(0)
+      return undefined
+    }
+
+    setBonusBannerHeight(element.offsetHeight)
+
+    const observer = new ResizeObserver(() => {
+      setBonusBannerHeight(element.offsetHeight)
+    })
+    observer.observe(element)
+
+    return () => { observer.disconnect() }
+  }, [effectiveBonusBrand, selectedCategory])
 
   const { amount: cartAmountForEffectiveBrand, points: cartPointsForEffectiveBrand } = useMemo(
     () => computeCartStatsForBrand(effectiveBonusBrand, cart),
@@ -565,42 +590,65 @@ const StorePage = () => {
           </div>
         )}
 
-        {effectiveBonusBrand && (
-          <div
-            className={`card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft p-4 shadow-soft ${
-              selectedCategory === ALL_CATEGORIES ? 'sticky top-24 z-10' : ''
-            }`}
-          >
-            <h3 className="text-base font-extrabold text-app-text">{effectiveBonusBrand.category_name}</h3>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-100 border-collapse text-sm">
-                <thead>
-                  <tr className="text-left text-app-text-soft">
-                    {effectiveBonusBrand.tiers.map((tier, index) => (
-                      <th key={`active-tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
-                        {formatPrice(tier.amount)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-app-border text-app-text">
-                    {effectiveBonusBrand.tiers.map((tier, index) => (
-                      <td key={`active-tier-value-${index}`} className="py-1 pr-4 whitespace-nowrap">
-                        {formatCount(tier.points)} ball
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
+        {effectiveBonusBrand && (() => {
+          const bonusBannerContent = (
+            <>
+              <h3 className="text-base font-extrabold text-app-text">{effectiveBonusBrand.category_name}</h3>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-100 border-collapse text-sm">
+                  <thead>
+                    <tr className="text-left text-app-text-soft">
+                      {effectiveBonusBrand.tiers.map((tier, index) => (
+                        <th key={`active-tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
+                          {formatPrice(tier.amount)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-app-border text-app-text">
+                      {effectiveBonusBrand.tiers.map((tier, index) => (
+                        <td key={`active-tier-value-${index}`} className="py-1 pr-4 whitespace-nowrap">
+                          {formatCount(tier.points)} ball
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-sm font-semibold text-app-text">
+                Ushbu toifadagi bonusingiz: {formatCount(cartPointsForEffectiveBrand)} ball
+                <span className="ml-1 font-normal text-app-text-soft">
+                  (savatdagi summa: {formatPrice(cartAmountForEffectiveBrand)})
+                </span>
+              </p>
+            </>
+          )
+
+          if (selectedCategory === ALL_CATEGORIES) {
+            return (
+              <div className="fixed top-24 right-0 left-0 z-10">
+                <div className="mx-auto w-full max-w-7xl px-4">
+                  <div
+                    ref={bonusBannerRef}
+                    className="card-radius border border-app-accent bg-app-accent-soft p-4 shadow-soft"
+                  >
+                    {bonusBannerContent}
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          return (
+            <div className="card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft p-4 shadow-soft">
+              {bonusBannerContent}
             </div>
-            <p className="mt-3 text-sm font-semibold text-app-text">
-              Ushbu toifadagi bonusingiz: {formatCount(cartPointsForEffectiveBrand)} ball
-              <span className="ml-1 font-normal text-app-text-soft">
-                (savatdagi summa: {formatPrice(cartAmountForEffectiveBrand)})
-              </span>
-            </p>
-          </div>
+          )
+        })()}
+
+        {selectedCategory === ALL_CATEGORIES && effectiveBonusBrand && (
+          <div style={{ height: bonusBannerHeight }} aria-hidden="true" />
         )}
 
         {isProductsLoading ? (
