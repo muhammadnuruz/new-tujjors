@@ -676,7 +676,7 @@ const StorePage = () => {
           if (selectedCategory === ALL_CATEGORIES) {
             return (
               <>
-                <div className="fixed right-0 left-0 z-10" style={{ top: headerHeight }}>
+                <div className="fixed right-0 left-0 z-20" style={{ top: headerHeight }}>
                   <div className="mx-auto w-full max-w-7xl px-4">
                     <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
                       {bonusBannerContent}
