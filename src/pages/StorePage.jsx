@@ -1,5 +1,6 @@
 import {
   startTransition,
+  useCallback,
   useDeferredValue,
   useEffect,
   useLayoutEffect,
@@ -7,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Crown } from 'lucide-react'
 import CartDrawer from '../components/CartDrawer'
 import ProductCard, { ProductCardSkeleton } from '../components/ProductCard'
 import StoreHeader, {
@@ -98,6 +100,39 @@ const normalizeCustomerForm = (form) => ({
   customerName: normalizeCustomerName(form.customerName),
   customerPhone: normalizeCustomerPhone(form.customerPhone),
 })
+
+const BonusTierChip = ({ tier, index }) => (
+  <div
+    key={`tier-${index}`}
+    className="flex shrink-0 flex-col items-center rounded-lg bg-app-surface px-2 py-1 text-center"
+  >
+    <span className="text-sm leading-tight font-extrabold whitespace-nowrap text-app-text">
+      {formatCount(tier.points)} ball
+    </span>
+    <span className="text-xs leading-tight whitespace-nowrap text-app-text-soft">
+      {formatPrice(tier.amount)}
+    </span>
+  </div>
+)
+
+const BonusBrandRow = ({ brand, statusNode }) => (
+  <div className="flex flex-wrap items-center gap-3">
+    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-accent text-app-accent-contrast">
+      <Crown size={18} strokeWidth={2.1} />
+    </span>
+    <div className="mr-1 min-w-0 shrink-0">
+      <p className="text-sm leading-tight font-extrabold whitespace-nowrap text-app-text uppercase">
+        {brand.category_name}
+      </p>
+      {statusNode}
+    </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {brand.tiers.map((tier, index) => (
+        <BonusTierChip key={`${brand.category_id}-tier-${index}`} tier={tier} index={index} />
+      ))}
+    </div>
+  </div>
+)
 
 const EmptyGrid = ({ searchTerm }) => (
   <div className="card-radius flex h-full min-h-0 flex-col items-center justify-center border border-dashed border-app-border bg-app-surface p-8 text-center">
@@ -348,39 +383,68 @@ const StorePage = () => {
     return () => { observer.disconnect() }
   }, [filteredProducts.length, hasMoreProducts, isProductsLoading])
 
+  // Scroll-position based scroll-spy: instead of relying on IntersectionObserver
+  // threshold crossings (which can miss headers entirely during fast/large
+  // scroll jumps, leaving the active category stuck), we measure directly on
+  // every scroll frame which header we've most recently scrolled past.
   useEffect(() => {
     if (selectedCategory !== ALL_CATEGORIES) {
       return undefined
     }
 
-    const headerEntries = Array.from(categoryHeaderRefsRef.current.entries())
-    if (headerEntries.length === 0) {
-      return undefined
+    // Trigger line sits just below the fixed StoreHeader (~96px) plus the
+    // compact bonus banner row (now a single ~56px-tall bar instead of the
+    // old table), so a header counts as "current" right as it slides under
+    // both fixed bars.
+    const TRIGGER_LINE_PX = 150
+    let ticking = false
+
+    const computeActiveCategory = () => {
+      ticking = false
+      const headerEntries = Array.from(categoryHeaderRefsRef.current.entries())
+      if (headerEntries.length === 0) return
+
+      let candidate = null
+      for (const [categoryId, element] of headerEntries) {
+        const top = element.getBoundingClientRect().top
+        if (top <= TRIGGER_LINE_PX) {
+          if (!candidate || top > candidate.top) {
+            candidate = { categoryId, top }
+          }
+        }
+      }
+
+      setScrollActiveCategoryId((current) => {
+        if (candidate) return candidate.categoryId
+        // Not scrolled to the first section yet — keep hidden rather than guessing.
+        return current
+      })
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const intersecting = entries.filter((entry) => entry.isIntersecting)
-        if (intersecting.length === 0) return
+    const onScroll = () => {
+      if (ticking) return
+      ticking = true
+      window.requestAnimationFrame(computeActiveCategory)
+    }
 
-        // Among currently-intersecting headers, the one closest to the top edge
-        // (largest boundingClientRect.top) is the section most recently scrolled
-        // into — i.e. the one we're currently "inside".
-        const current = intersecting.reduce((best, entry) =>
-          entry.boundingClientRect.top > best.boundingClientRect.top ? entry : best,
-        )
-        const matched = headerEntries.find(([, element]) => element === current.target)
-        if (matched) {
-          setScrollActiveCategoryId(matched[0])
-        }
-      },
-      { rootMargin: '-104px 0px -75% 0px', threshold: 0 },
-    )
+    computeActiveCategory() // run once immediately for the initial scroll position
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
 
-    headerEntries.forEach(([, element]) => observer.observe(element))
-
-    return () => { observer.disconnect() }
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
   }, [selectedCategory, sectionedVisibleItems])
+
+  const setCategoryHeaderRef = useCallback((categoryId) => (element) => {
+    if (!categoryId) return
+    if (element) {
+      categoryHeaderRefsRef.current.set(categoryId, element)
+    } else {
+      categoryHeaderRefsRef.current.delete(categoryId)
+    }
+  }, [])
 
   const selectAllCategories = () => {
     setSelectedCategory(ALL_CATEGORIES)
@@ -561,68 +625,26 @@ const StorePage = () => {
             {bonus.description && (
               <p className="mt-1 text-sm text-app-text-soft">{bonus.description}</p>
             )}
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-125 border-collapse text-sm">
-                <thead>
-                  <tr className="text-left text-app-text-soft">
-                    <th className="py-1 pr-4 font-semibold">Toifa</th>
-                    {bonus.brands[0]?.tiers.map((tier, index) => (
-                      <th key={`tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
-                        {formatPrice(tier.amount)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {bonus.brands.map((brand) => (
-                    <tr key={brand.category_id} className="border-t border-app-border text-app-text">
-                      <td className="py-1 pr-4 font-medium whitespace-nowrap">{brand.category_name}</td>
-                      {brand.tiers.map((tier, index) => (
-                        <td key={`${brand.category_id}-tier-${index}`} className="py-1 pr-4 whitespace-nowrap">
-                          {formatCount(tier.points)} ball
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-3 flex flex-col gap-3">
+              {bonus.brands.map((brand) => (
+                <BonusBrandRow key={brand.category_id} brand={brand} />
+              ))}
             </div>
           </div>
         )}
 
         {effectiveBonusBrand && (() => {
+          const statusNode = (
+            <p className="text-xs leading-tight whitespace-nowrap text-app-text-soft">
+              Ushbu toifadagi bonusingiz: {formatCount(cartPointsForEffectiveBrand)} ball
+              <span className="ml-1">
+                (savatdagi summa: {formatPrice(cartAmountForEffectiveBrand)})
+              </span>
+            </p>
+          )
+
           const bonusBannerContent = (
-            <>
-              <h3 className="text-base font-extrabold text-app-text">{effectiveBonusBrand.category_name}</h3>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-100 border-collapse text-sm">
-                  <thead>
-                    <tr className="text-left text-app-text-soft">
-                      {effectiveBonusBrand.tiers.map((tier, index) => (
-                        <th key={`active-tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
-                          {formatPrice(tier.amount)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-app-border text-app-text">
-                      {effectiveBonusBrand.tiers.map((tier, index) => (
-                        <td key={`active-tier-value-${index}`} className="py-1 pr-4 whitespace-nowrap">
-                          {formatCount(tier.points)} ball
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-3 text-sm font-semibold text-app-text">
-                Ushbu toifadagi bonusingiz: {formatCount(cartPointsForEffectiveBrand)} ball
-                <span className="ml-1 font-normal text-app-text-soft">
-                  (savatdagi summa: {formatPrice(cartAmountForEffectiveBrand)})
-                </span>
-              </p>
-            </>
+            <BonusBrandRow brand={effectiveBonusBrand} statusNode={statusNode} />
           )
 
           if (selectedCategory === ALL_CATEGORIES) {
@@ -631,7 +653,7 @@ const StorePage = () => {
                 <div className="mx-auto w-full max-w-7xl px-4">
                   <div
                     ref={bonusBannerRef}
-                    className="card-radius border border-app-accent bg-app-accent-soft p-4 shadow-soft"
+                    className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft"
                   >
                     {bonusBannerContent}
                   </div>
@@ -641,7 +663,7 @@ const StorePage = () => {
           }
 
           return (
-            <div className="card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft p-4 shadow-soft">
+            <div className="card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
               {bonusBannerContent}
             </div>
           )
@@ -663,14 +685,7 @@ const StorePage = () => {
                   return (
                     <div
                       key={`category-header-${item.categoryId ?? item.categoryName}-${index}`}
-                      ref={(element) => {
-                        if (!item.categoryId) return
-                        if (element) {
-                          categoryHeaderRefsRef.current.set(item.categoryId, element)
-                        } else {
-                          categoryHeaderRefsRef.current.delete(item.categoryId)
-                        }
-                      }}
+                      ref={setCategoryHeaderRef(item.categoryId)}
                       className="col-span-full mt-2 border-b border-app-border pb-2 text-base font-extrabold text-app-text first:mt-0"
                     >
                       {item.categoryName}
