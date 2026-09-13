@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ChevronDown, ChevronUp, Crown } from 'lucide-react'
+import { ChevronDown, ChevronUp, Crown, ShoppingCart } from 'lucide-react'
 import CartDrawer from '../components/CartDrawer'
 import ProductCard, { ProductCardSkeleton } from '../components/ProductCard'
 import StoreHeader, {
@@ -126,13 +126,13 @@ const BonusTierChip = ({ tier, index }) => (
 // shows the full layout and the toggle is irrelevant. Both the mobile and
 // desktop branches live in this one component so the fixed banner and its
 // ghost spacer (see "Ghost clone" below) never drift apart in height.
-const BonusBrandRow = ({ brand, statusNode, points, mobileExpanded, onToggleMobileExpanded }) => (
+const BonusBrandRow = ({ brand, statusNode, mobileAmountNode, points, mobileExpanded, onToggleMobileExpanded }) => (
   <div>
     <button
       type="button"
       onClick={onToggleMobileExpanded}
       aria-expanded={mobileExpanded}
-      className="flex w-full min-w-0 items-center gap-2 text-left sm:hidden"
+      className="flex w-full min-w-0 flex-nowrap items-center gap-2 text-left sm:hidden"
     >
       <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-app-accent text-app-accent-contrast">
         <Crown size={14} strokeWidth={2.1} />
@@ -144,16 +144,16 @@ const BonusBrandRow = ({ brand, statusNode, points, mobileExpanded, onToggleMobi
         {formatCount(points)} ball
       </span>
       {mobileExpanded ? (
-        <ChevronUp size={20} className="shrink-0 text-app-text-soft" />
+        <ChevronUp size={18} className="shrink-0 text-app-text-soft" />
       ) : (
-        <ChevronDown size={20} className="shrink-0 text-app-text-soft" />
+        <ChevronDown size={18} className="shrink-0 text-app-text-soft" />
       )}
     </button>
 
     {mobileExpanded && (
-      <div className="mt-2 flex flex-col gap-2 sm:hidden">
-        {statusNode}
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex flex-col gap-1.5 sm:hidden">
+        {mobileAmountNode}
+        <div className="flex flex-wrap items-center gap-1.5">
           {brand.tiers.map((tier, index) => (
             <BonusTierChip key={`${brand.category_id}-tier-mobile-${index}`} tier={tier} index={index} />
           ))}
@@ -655,8 +655,6 @@ const StorePage = () => {
         products={products}
         search={search}
         onSearchChange={setSearch}
-        totalItems={totalItems}
-        onOpenCart={() => setCartOpen(true)}
         selectedCategory={selectedCategory}
         onSelectAllCategories={selectAllCategories}
         onSelectCategory={selectCategory}
@@ -711,11 +709,19 @@ const StorePage = () => {
               </span>
             </p>
           )
+          // Mobile expanded panel already shows the points count in the always-visible
+          // collapsed bar above, so repeat only the cart amount here to avoid duplicate text.
+          const mobileAmountNode = (
+            <p className="text-[11px] leading-tight text-app-text-soft">
+              Savatdagi summa: {formatPrice(cartAmountForEffectiveBrand)}
+            </p>
+          )
 
           const bonusBannerContent = (
             <BonusBrandRow
               brand={effectiveBonusBrand}
               statusNode={statusNode}
+              mobileAmountNode={mobileAmountNode}
               points={cartPointsForEffectiveBrand}
               mobileExpanded={mobileBonusExpanded}
               onToggleMobileExpanded={() => setMobileBonusExpanded((current) => !current)}
@@ -796,6 +802,20 @@ const StorePage = () => {
           </>
         )}
       </section>
+
+      <button
+        type="button"
+        onClick={() => setCartOpen(true)}
+        aria-label="Savatni ochish"
+        className="fixed right-4 bottom-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-app-accent text-app-accent-contrast shadow-soft sm:right-6 sm:bottom-6"
+      >
+        <ShoppingCart size={22} />
+        {totalItems > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-app-danger px-1 text-[11px] font-bold text-white">
+            {formatCount(totalItems)}
+          </span>
+        )}
+      </button>
 
       <CartDrawer
         isOpen={cartOpen}

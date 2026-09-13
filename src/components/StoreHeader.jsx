@@ -1,4 +1,4 @@
-import { Menu, Search, ShoppingCart, X } from 'lucide-react'
+import { Menu, Search, X } from 'lucide-react'
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ALL_CATEGORIES,
@@ -27,8 +27,6 @@ const StoreHeader = forwardRef(({
   products = [],
   search,
   onSearchChange,
-  totalItems,
-  onOpenCart,
   selectedCategory,
   onSelectAllCategories,
   onSelectCategory,
@@ -103,8 +101,8 @@ const StoreHeader = forwardRef(({
         ref={headerRef}
         className="fixed top-0 right-0 left-0 z-20 shrink-0 border-b border-app-border bg-app-surface"
       >
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-4 md:flex-nowrap">
-          <div ref={categoryTriggerRef} className="w-full md:w-auto">
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-4">
+          <div ref={categoryTriggerRef} className="shrink-0">
             <button
               type="button"
               onClick={toggleCategoryMenu}
@@ -115,7 +113,7 @@ const StoreHeader = forwardRef(({
             </button>
           </div>
 
-          <label className="relative w-full md:flex-1">
+          <label className="relative min-w-0 flex-1">
             <span className="sr-only">Qidirish</span>
             <Search
               size={18}
@@ -129,15 +127,6 @@ const StoreHeader = forwardRef(({
               className="w-full rounded-2xl border border-app-border bg-app-surface-muted py-3 pr-4 pl-11 text-sm text-app-text"
             />
           </label>
-
-          <button
-            type="button"
-            onClick={onOpenCart}
-            className="inline-flex items-center gap-2 rounded-2xl bg-app-accent px-4 py-3 text-sm font-bold text-app-accent-contrast"
-          >
-            <ShoppingCart size={18} />
-            <span>Savat {totalItems > 0 ? `(${formatCount(totalItems)})` : ''}</span>
-          </button>
         </div>
       </header>
 
