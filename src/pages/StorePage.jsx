@@ -673,32 +673,24 @@ const StorePage = () => {
             <BonusBrandRow brand={effectiveBonusBrand} statusNode={statusNode} />
           )
 
-          if (selectedCategory === ALL_CATEGORIES) {
-            return (
-              <>
-                <div className="fixed right-0 left-0 z-20" style={{ top: headerHeight }}>
-                  <div className="mx-auto w-full max-w-7xl px-4">
-                    <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
-                      {bonusBannerContent}
-                    </div>
-                  </div>
-                </div>
-                {/* Ghost clone: identical markup rendered in normal flow, invisible.
-                    It reserves exactly the layout space the fixed copy occupies so
-                    the product grid below never overlaps it - no measurement needed. */}
-                <div className="invisible pointer-events-none" aria-hidden="true">
+          return (
+            <>
+              <div className="fixed right-0 left-0 z-20" style={{ top: headerHeight }}>
+                <div className="mx-auto w-full max-w-7xl px-4">
                   <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
                     {bonusBannerContent}
                   </div>
                 </div>
-              </>
-            )
-          }
-
-          return (
-            <div className="card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
-              {bonusBannerContent}
-            </div>
+              </div>
+              {/* Ghost clone: identical markup rendered in normal flow, invisible.
+                  It reserves exactly the layout space the fixed copy occupies so
+                  the product grid below never overlaps it - no measurement needed. */}
+              <div className="invisible pointer-events-none" aria-hidden="true">
+                <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
+                  {bonusBannerContent}
+                </div>
+              </div>
+            </>
           )
         })()}
 
