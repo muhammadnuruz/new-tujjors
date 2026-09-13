@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Crown } from 'lucide-react'
+import { ChevronDown, ChevronUp, Crown } from 'lucide-react'
 import CartDrawer from '../components/CartDrawer'
 import ProductCard, { ProductCardSkeleton } from '../components/ProductCard'
 import StoreHeader, {
@@ -102,10 +102,10 @@ const normalizeCustomerForm = (form) => ({
 
 const BonusTierContent = ({ tier }) => (
   <>
-    <span className="text-sm leading-tight font-extrabold whitespace-nowrap text-app-text">
+    <span className="text-xs leading-tight font-extrabold whitespace-nowrap text-app-text sm:text-sm">
       {formatCount(tier.points)} ball
     </span>
-    <span className="text-xs leading-tight whitespace-nowrap text-app-text-soft">
+    <span className="text-[10px] leading-tight whitespace-nowrap text-app-text-soft sm:text-xs">
       {formatPrice(tier.amount)}
     </span>
   </>
@@ -114,27 +114,68 @@ const BonusTierContent = ({ tier }) => (
 const BonusTierChip = ({ tier, index }) => (
   <div
     key={`tier-${index}`}
-    className="flex shrink-0 flex-col items-center rounded-lg bg-app-surface px-2 py-1 text-center"
+    className="flex shrink-0 flex-col items-center rounded-lg bg-app-surface px-1.5 py-1 text-center sm:px-2"
   >
     <BonusTierContent tier={tier} />
   </div>
 )
 
-const BonusBrandRow = ({ brand, statusNode }) => (
-  <div className="flex flex-wrap items-center gap-3">
-    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-accent text-app-accent-contrast">
-      <Crown size={18} strokeWidth={2.1} />
-    </span>
-    <div className="mr-1 min-w-0 shrink-0">
-      <p className="text-sm leading-tight font-extrabold whitespace-nowrap text-app-text uppercase">
+// Pinned per-category bonus banner. Below `sm` it renders as a single
+// tappable compact bar (icon + truncated name + earned points) that expands
+// in place to reveal the status line and tier chips; `sm:` and up it always
+// shows the full layout and the toggle is irrelevant. Both the mobile and
+// desktop branches live in this one component so the fixed banner and its
+// ghost spacer (see "Ghost clone" below) never drift apart in height.
+const BonusBrandRow = ({ brand, statusNode, points, mobileExpanded, onToggleMobileExpanded }) => (
+  <div>
+    <button
+      type="button"
+      onClick={onToggleMobileExpanded}
+      aria-expanded={mobileExpanded}
+      className="flex w-full min-w-0 items-center gap-2 text-left sm:hidden"
+    >
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-app-accent text-app-accent-contrast">
+        <Crown size={14} strokeWidth={2.1} />
+      </span>
+      <p className="min-w-0 flex-1 truncate text-xs leading-tight font-extrabold text-app-text uppercase">
         {brand.category_name}
       </p>
-      {statusNode}
-    </div>
-    <div className="flex flex-wrap items-center gap-2">
-      {brand.tiers.map((tier, index) => (
-        <BonusTierChip key={`${brand.category_id}-tier-${index}`} tier={tier} index={index} />
-      ))}
+      <span className="shrink-0 text-xs leading-tight font-extrabold whitespace-nowrap text-app-text">
+        {formatCount(points)} ball
+      </span>
+      {mobileExpanded ? (
+        <ChevronUp size={20} className="shrink-0 text-app-text-soft" />
+      ) : (
+        <ChevronDown size={20} className="shrink-0 text-app-text-soft" />
+      )}
+    </button>
+
+    {mobileExpanded && (
+      <div className="mt-2 flex flex-col gap-2 sm:hidden">
+        {statusNode}
+        <div className="flex flex-wrap items-center gap-2">
+          {brand.tiers.map((tier, index) => (
+            <BonusTierChip key={`${brand.category_id}-tier-mobile-${index}`} tier={tier} index={index} />
+          ))}
+        </div>
+      </div>
+    )}
+
+    <div className="hidden items-center gap-3 sm:flex sm:flex-wrap">
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-accent text-app-accent-contrast">
+        <Crown size={18} strokeWidth={2.1} />
+      </span>
+      <div className="mr-1 min-w-0 flex-1">
+        <p className="truncate text-sm leading-tight font-extrabold text-app-text uppercase">
+          {brand.category_name}
+        </p>
+        {statusNode}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {brand.tiers.map((tier, index) => (
+          <BonusTierChip key={`${brand.category_id}-tier-${index}`} tier={tier} index={index} />
+        ))}
+      </div>
     </div>
   </div>
 )
@@ -156,7 +197,7 @@ const BonusBrandOverviewRow = ({ brand }) => (
     {brand.tiers.map((tier, index) => (
       <div
         key={`${brand.category_id}-tier-${index}`}
-        className="flex flex-col items-center rounded-lg bg-app-surface px-2 py-1 text-center"
+        className="flex flex-col items-center rounded-lg bg-app-surface px-1.5 py-1 text-center sm:px-2"
       >
         <BonusTierContent tier={tier} />
       </div>
@@ -216,6 +257,7 @@ const StorePage = () => {
   const [status, setStatus] = useState(null)
   const [bonus, setBonus] = useState(null)
   const [scrollActiveCategoryId, setScrollActiveCategoryId] = useState(null)
+  const [mobileBonusExpanded, setMobileBonusExpanded] = useState(false)
   const [headerHeight, setHeaderHeight] = useState(96)
   const loadMoreTriggerRef = useRef(null)
   const categoryHeaderRefsRef = useRef(new Map())
@@ -378,6 +420,7 @@ const StorePage = () => {
   useEffect(() => {
     setVisibleProductCount(INITIAL_VISIBLE_PRODUCTS)
     setScrollActiveCategoryId(null)
+    setMobileBonusExpanded(false)
   }, [deferredSearch, selectedCategory, products])
 
   useEffect(() => {
@@ -644,10 +687,10 @@ const StorePage = () => {
         </div>
 
         {bonus?.enabled && bonus?.show_in_catalog && bonus.brands?.length > 0 && (
-          <div className="card-radius mb-4 shrink-0 border border-app-border bg-app-surface p-4 shadow-soft">
-            <h2 className="text-base font-extrabold text-app-text">{bonus.title}</h2>
+          <div className="card-radius mb-4 shrink-0 border border-app-border bg-app-surface p-3 shadow-soft sm:p-4">
+            <h2 className="text-base font-extrabold text-app-text sm:text-lg">{bonus.title}</h2>
             {bonus.description && (
-              <p className="mt-1 text-sm text-app-text-soft">{bonus.description}</p>
+              <p className="mt-1 text-xs text-app-text-soft sm:text-sm">{bonus.description}</p>
             )}
             <div className="mt-3 overflow-x-auto">
               <div className="flex flex-col gap-3">
@@ -670,25 +713,31 @@ const StorePage = () => {
           )
 
           const bonusBannerContent = (
-            <BonusBrandRow brand={effectiveBonusBrand} statusNode={statusNode} />
+            <BonusBrandRow
+              brand={effectiveBonusBrand}
+              statusNode={statusNode}
+              points={cartPointsForEffectiveBrand}
+              mobileExpanded={mobileBonusExpanded}
+              onToggleMobileExpanded={() => setMobileBonusExpanded((current) => !current)}
+            />
           )
+          const bonusBannerWrapperClassName =
+            'card-radius border border-app-accent bg-app-accent-soft px-3 py-2 shadow-soft sm:px-4 sm:py-3'
 
           return (
             <>
               <div className="fixed right-0 left-0 z-20" style={{ top: headerHeight }}>
                 <div className="mx-auto w-full max-w-7xl px-4">
-                  <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
-                    {bonusBannerContent}
-                  </div>
+                  <div className={bonusBannerWrapperClassName}>{bonusBannerContent}</div>
                 </div>
               </div>
-              {/* Ghost clone: identical markup rendered in normal flow, invisible.
-                  It reserves exactly the layout space the fixed copy occupies so
-                  the product grid below never overlaps it - no measurement needed. */}
+              {/* Ghost clone: identical markup (same wrapper classes, same
+                  bonusBannerContent, same mobileBonusExpanded state) rendered in
+                  normal flow, invisible. It reserves exactly the layout space the
+                  fixed copy occupies - collapsed or expanded - so the product grid
+                  below never overlaps it, no measurement needed. */}
               <div className="invisible pointer-events-none" aria-hidden="true">
-                <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
-                  {bonusBannerContent}
-                </div>
+                <div className={bonusBannerWrapperClassName}>{bonusBannerContent}</div>
               </div>
             </>
           )
