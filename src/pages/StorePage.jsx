@@ -58,6 +58,20 @@ const normalizeCustomerPhone = (value) => {
   return raw
 }
 
+const computeCartStatsForBrand = (brand, cartItems) => {
+  if (!brand) return { amount: 0, points: 0 }
+  const amount = cartItems.reduce((sum, item) => {
+    const itemCategoryId = item.categoryId || item.raw?.category?.CS_id
+    if (itemCategoryId !== brand.category_id) return sum
+    return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0)
+  }, 0)
+  let points = 0
+  for (const tier of brand.tiers) {
+    if (amount >= tier.amount) points = tier.points
+  }
+  return { amount, points }
+}
+
 const countLetters = (value) => value.replace(/[^\p{L}]/gu, '').length
 
 const validateCustomerForm = (form) => {
@@ -135,7 +149,9 @@ const StorePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [status, setStatus] = useState(null)
   const [bonus, setBonus] = useState(null)
+  const [scrollActiveCategoryId, setScrollActiveCategoryId] = useState(null)
   const loadMoreTriggerRef = useRef(null)
+  const categoryHeaderRefsRef = useRef(new Map())
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
   const customerFormErrors = useMemo(() => validateCustomerForm(customerForm), [customerForm])
@@ -208,23 +224,18 @@ const StorePage = () => {
     return bonus.brands?.find((brand) => brand.category_id === selectedCategoryId) || null
   }, [bonus, selectedCategoryId])
 
-  const cartAmountForActiveBrand = useMemo(() => {
-    if (!activeBonusBrand) return 0
-    return cart.reduce((sum, item) => {
-      const itemCategoryId = item.categoryId || item.raw?.category?.CS_id
-      if (itemCategoryId !== activeBonusBrand.category_id) return sum
-      return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0)
-    }, 0)
-  }, [cart, activeBonusBrand])
+  const scrollActiveBonusBrand = useMemo(() => {
+    if (!bonus?.enabled || !bonus?.show_in_catalog || !scrollActiveCategoryId) return null
+    return bonus.brands?.find((brand) => brand.category_id === scrollActiveCategoryId) || null
+  }, [bonus, scrollActiveCategoryId])
 
-  const cartPointsForActiveBrand = useMemo(() => {
-    if (!activeBonusBrand) return 0
-    let earned = 0
-    for (const tier of activeBonusBrand.tiers) {
-      if (cartAmountForActiveBrand >= tier.amount) earned = tier.points
-    }
-    return earned
-  }, [activeBonusBrand, cartAmountForActiveBrand])
+  const effectiveBonusBrand =
+    selectedCategory === ALL_CATEGORIES ? scrollActiveBonusBrand : activeBonusBrand
+
+  const { amount: cartAmountForEffectiveBrand, points: cartPointsForEffectiveBrand } = useMemo(
+    () => computeCartStatsForBrand(effectiveBonusBrand, cart),
+    [effectiveBonusBrand, cart],
+  )
 
   const filteredProducts = useMemo(() => {
     const nextProducts = products.filter((product) => {
@@ -256,6 +267,27 @@ const StorePage = () => {
   const visibleProducts = filteredProducts.slice(0, visibleProductCount)
   const hasMoreProducts = visibleProducts.length < filteredProducts.length
 
+  const sectionedVisibleItems = useMemo(() => {
+    if (selectedCategory !== ALL_CATEGORIES) {
+      return visibleProducts.map((product) => ({ type: 'product', product }))
+    }
+    const items = []
+    let previousCategory = null
+    for (const product of visibleProducts) {
+      if (product.category !== previousCategory) {
+        items.push({
+          type: 'header',
+          categoryId: product.categoryId,
+          categoryName: product.category,
+        })
+        previousCategory = product.category
+      }
+      items.push({ type: 'product', product })
+    }
+    return items
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, visibleProductCount, filteredProducts])
+
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const cartQuantityById = useMemo(
     () => new Map(cart.map((item) => [item.id, item.quantity])),
@@ -264,6 +296,7 @@ const StorePage = () => {
 
   useEffect(() => {
     setVisibleProductCount(INITIAL_VISIBLE_PRODUCTS)
+    setScrollActiveCategoryId(null)
   }, [deferredSearch, selectedCategory, products])
 
   useEffect(() => {
@@ -289,6 +322,40 @@ const StorePage = () => {
 
     return () => { observer.disconnect() }
   }, [filteredProducts.length, hasMoreProducts, isProductsLoading])
+
+  useEffect(() => {
+    if (selectedCategory !== ALL_CATEGORIES) {
+      return undefined
+    }
+
+    const headerEntries = Array.from(categoryHeaderRefsRef.current.entries())
+    if (headerEntries.length === 0) {
+      return undefined
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const intersecting = entries.filter((entry) => entry.isIntersecting)
+        if (intersecting.length === 0) return
+
+        // Among currently-intersecting headers, the one closest to the top edge
+        // (largest boundingClientRect.top) is the section most recently scrolled
+        // into — i.e. the one we're currently "inside".
+        const current = intersecting.reduce((best, entry) =>
+          entry.boundingClientRect.top > best.boundingClientRect.top ? entry : best,
+        )
+        const matched = headerEntries.find(([, element]) => element === current.target)
+        if (matched) {
+          setScrollActiveCategoryId(matched[0])
+        }
+      },
+      { rootMargin: '-104px 0px -75% 0px', threshold: 0 },
+    )
+
+    headerEntries.forEach(([, element]) => observer.observe(element))
+
+    return () => { observer.disconnect() }
+  }, [selectedCategory, sectionedVisibleItems])
 
   const selectAllCategories = () => {
     setSelectedCategory(ALL_CATEGORIES)
@@ -498,14 +565,18 @@ const StorePage = () => {
           </div>
         )}
 
-        {activeBonusBrand && (
-          <div className="card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft p-4">
-            <h3 className="text-base font-extrabold text-app-text">{activeBonusBrand.category_name}</h3>
+        {effectiveBonusBrand && (
+          <div
+            className={`card-radius mb-4 shrink-0 border border-app-accent bg-app-accent-soft p-4 shadow-soft ${
+              selectedCategory === ALL_CATEGORIES ? 'sticky top-24 z-10' : ''
+            }`}
+          >
+            <h3 className="text-base font-extrabold text-app-text">{effectiveBonusBrand.category_name}</h3>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full min-w-100 border-collapse text-sm">
                 <thead>
                   <tr className="text-left text-app-text-soft">
-                    {activeBonusBrand.tiers.map((tier, index) => (
+                    {effectiveBonusBrand.tiers.map((tier, index) => (
                       <th key={`active-tier-head-${index}`} className="py-1 pr-4 font-semibold whitespace-nowrap">
                         {formatPrice(tier.amount)}
                       </th>
@@ -514,7 +585,7 @@ const StorePage = () => {
                 </thead>
                 <tbody>
                   <tr className="border-t border-app-border text-app-text">
-                    {activeBonusBrand.tiers.map((tier, index) => (
+                    {effectiveBonusBrand.tiers.map((tier, index) => (
                       <td key={`active-tier-value-${index}`} className="py-1 pr-4 whitespace-nowrap">
                         {formatCount(tier.points)} ball
                       </td>
@@ -524,9 +595,9 @@ const StorePage = () => {
               </table>
             </div>
             <p className="mt-3 text-sm font-semibold text-app-text">
-              Ushbu toifadagi bonusingiz: {formatCount(cartPointsForActiveBrand)} ball
+              Ushbu toifadagi bonusingiz: {formatCount(cartPointsForEffectiveBrand)} ball
               <span className="ml-1 font-normal text-app-text-soft">
-                (savatdagi summa: {formatPrice(cartAmountForActiveBrand)})
+                (savatdagi summa: {formatPrice(cartAmountForEffectiveBrand)})
               </span>
             </p>
           </div>
@@ -539,23 +610,46 @@ const StorePage = () => {
         ) : (
           <>
             <div className="grid mt-4 min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {visibleProducts.map((product, index) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  priority={index < 6}
-                  quantityInCart={cartQuantityById.get(product.id) || 0}
-                  isEditorOpen={quantityEditor.productId === product.id}
-                  editorQuantity={
-                    quantityEditor.productId === product.id ? quantityEditor.quantity : '1'
-                  }
-                  onOpenEditor={openQuantityEditor}
-                  onCloseEditor={closeQuantityEditor}
-                  onChangeEditorQuantity={changeEditorQuantity}
-                  onAdjustEditorQuantity={adjustEditorQuantity}
-                  onSaveQuantity={saveEditorQuantity}
-                />
-              ))}
+              {sectionedVisibleItems.map((item, index) => {
+                if (item.type === 'header') {
+                  return (
+                    <div
+                      key={`category-header-${item.categoryId ?? item.categoryName}-${index}`}
+                      ref={(element) => {
+                        if (!item.categoryId) return
+                        if (element) {
+                          categoryHeaderRefsRef.current.set(item.categoryId, element)
+                        } else {
+                          categoryHeaderRefsRef.current.delete(item.categoryId)
+                        }
+                      }}
+                      className="col-span-full mt-2 border-b border-app-border pb-2 text-base font-extrabold text-app-text first:mt-0"
+                    >
+                      {item.categoryName}
+                    </div>
+                  )
+                }
+
+                const { product } = item
+                const productIndex = visibleProducts.indexOf(product)
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    priority={productIndex < 6}
+                    quantityInCart={cartQuantityById.get(product.id) || 0}
+                    isEditorOpen={quantityEditor.productId === product.id}
+                    editorQuantity={
+                      quantityEditor.productId === product.id ? quantityEditor.quantity : '1'
+                    }
+                    onOpenEditor={openQuantityEditor}
+                    onCloseEditor={closeQuantityEditor}
+                    onChangeEditorQuantity={changeEditorQuantity}
+                    onAdjustEditorQuantity={adjustEditorQuantity}
+                    onSaveQuantity={saveEditorQuantity}
+                  />
+                )
+              })}
             </div>
 
             {hasMoreProducts && (
