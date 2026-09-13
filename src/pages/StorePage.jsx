@@ -3,7 +3,6 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -101,17 +100,23 @@ const normalizeCustomerForm = (form) => ({
   customerPhone: normalizeCustomerPhone(form.customerPhone),
 })
 
-const BonusTierChip = ({ tier, index }) => (
-  <div
-    key={`tier-${index}`}
-    className="flex shrink-0 flex-col items-center rounded-lg bg-app-surface px-2 py-1 text-center"
-  >
+const BonusTierContent = ({ tier }) => (
+  <>
     <span className="text-sm leading-tight font-extrabold whitespace-nowrap text-app-text">
       {formatCount(tier.points)} ball
     </span>
     <span className="text-xs leading-tight whitespace-nowrap text-app-text-soft">
       {formatPrice(tier.amount)}
     </span>
+  </>
+)
+
+const BonusTierChip = ({ tier, index }) => (
+  <div
+    key={`tier-${index}`}
+    className="flex shrink-0 flex-col items-center rounded-lg bg-app-surface px-2 py-1 text-center"
+  >
+    <BonusTierContent tier={tier} />
   </div>
 )
 
@@ -131,6 +136,31 @@ const BonusBrandRow = ({ brand, statusNode }) => (
         <BonusTierChip key={`${brand.category_id}-tier-${index}`} tier={tier} index={index} />
       ))}
     </div>
+  </div>
+)
+
+// Shared grid template for the overview list so every brand row's icon, name,
+// and 5 tier columns line up across rows regardless of how long each brand's
+// numbers are (fixed tracks, not content-driven auto sizing like BonusBrandRow).
+const BONUS_OVERVIEW_GRID_COLS =
+  'grid-cols-[2.25rem_minmax(10rem,1fr)_repeat(5,minmax(5.5rem,1fr))]'
+
+const BonusBrandOverviewRow = ({ brand }) => (
+  <div className={`grid ${BONUS_OVERVIEW_GRID_COLS} min-w-[42rem] items-center gap-x-3 gap-y-2`}>
+    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-accent text-app-accent-contrast">
+      <Crown size={18} strokeWidth={2.1} />
+    </span>
+    <p className="min-w-0 truncate text-sm leading-tight font-extrabold text-app-text uppercase">
+      {brand.category_name}
+    </p>
+    {brand.tiers.map((tier, index) => (
+      <div
+        key={`${brand.category_id}-tier-${index}`}
+        className="flex flex-col items-center rounded-lg bg-app-surface px-2 py-1 text-center"
+      >
+        <BonusTierContent tier={tier} />
+      </div>
+    ))}
   </div>
 )
 
@@ -188,8 +218,6 @@ const StorePage = () => {
   const [scrollActiveCategoryId, setScrollActiveCategoryId] = useState(null)
   const loadMoreTriggerRef = useRef(null)
   const categoryHeaderRefsRef = useRef(new Map())
-  const bonusBannerRef = useRef(null)
-  const [bonusBannerHeight, setBonusBannerHeight] = useState(0)
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
   const customerFormErrors = useMemo(() => validateCustomerForm(customerForm), [customerForm])
@@ -269,28 +297,6 @@ const StorePage = () => {
 
   const effectiveBonusBrand =
     selectedCategory === ALL_CATEGORIES ? scrollActiveBonusBrand : activeBonusBrand
-
-  useLayoutEffect(() => {
-    if (selectedCategory !== ALL_CATEGORIES || !effectiveBonusBrand) {
-      setBonusBannerHeight(0)
-      return undefined
-    }
-
-    const element = bonusBannerRef.current
-    if (!element) {
-      setBonusBannerHeight(0)
-      return undefined
-    }
-
-    setBonusBannerHeight(element.offsetHeight)
-
-    const observer = new ResizeObserver(() => {
-      setBonusBannerHeight(element.offsetHeight)
-    })
-    observer.observe(element)
-
-    return () => { observer.disconnect() }
-  }, [effectiveBonusBrand, selectedCategory])
 
   const { amount: cartAmountForEffectiveBrand, points: cartPointsForEffectiveBrand } = useMemo(
     () => computeCartStatsForBrand(effectiveBonusBrand, cart),
@@ -625,10 +631,12 @@ const StorePage = () => {
             {bonus.description && (
               <p className="mt-1 text-sm text-app-text-soft">{bonus.description}</p>
             )}
-            <div className="mt-3 flex flex-col gap-3">
-              {bonus.brands.map((brand) => (
-                <BonusBrandRow key={brand.category_id} brand={brand} />
-              ))}
+            <div className="mt-3 overflow-x-auto">
+              <div className="flex flex-col gap-3">
+                {bonus.brands.map((brand) => (
+                  <BonusBrandOverviewRow key={brand.category_id} brand={brand} />
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -649,16 +657,23 @@ const StorePage = () => {
 
           if (selectedCategory === ALL_CATEGORIES) {
             return (
-              <div className="fixed top-24 right-0 left-0 z-10">
-                <div className="mx-auto w-full max-w-7xl px-4">
-                  <div
-                    ref={bonusBannerRef}
-                    className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft"
-                  >
+              <>
+                <div className="fixed top-24 right-0 left-0 z-10">
+                  <div className="mx-auto w-full max-w-7xl px-4">
+                    <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
+                      {bonusBannerContent}
+                    </div>
+                  </div>
+                </div>
+                {/* Ghost clone: identical markup rendered in normal flow, invisible.
+                    It reserves exactly the layout space the fixed copy occupies so
+                    the product grid below never overlaps it - no measurement needed. */}
+                <div className="invisible pointer-events-none" aria-hidden="true">
+                  <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
                     {bonusBannerContent}
                   </div>
                 </div>
-              </div>
+              </>
             )
           }
 
@@ -668,10 +683,6 @@ const StorePage = () => {
             </div>
           )
         })()}
-
-        {selectedCategory === ALL_CATEGORIES && effectiveBonusBrand && (
-          <div style={{ height: bonusBannerHeight }} aria-hidden="true" />
-        )}
 
         {isProductsLoading ? (
           <LoadingGrid />
