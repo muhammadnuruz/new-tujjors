@@ -216,8 +216,23 @@ const StorePage = () => {
   const [status, setStatus] = useState(null)
   const [bonus, setBonus] = useState(null)
   const [scrollActiveCategoryId, setScrollActiveCategoryId] = useState(null)
+  const [headerHeight, setHeaderHeight] = useState(96)
   const loadMoreTriggerRef = useRef(null)
   const categoryHeaderRefsRef = useRef(new Map())
+  const headerRef = useRef(null)
+
+  useEffect(() => {
+    const element = headerRef.current
+    if (!element) return undefined
+
+    const measure = () => setHeaderHeight(element.offsetHeight)
+    measure()
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+
+    return () => { observer.disconnect() }
+  }, [])
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
   const customerFormErrors = useMemo(() => validateCustomerForm(customerForm), [customerForm])
@@ -398,11 +413,10 @@ const StorePage = () => {
       return undefined
     }
 
-    // Trigger line sits just below the fixed StoreHeader (~96px) plus the
-    // compact bonus banner row (now a single ~56px-tall bar instead of the
-    // old table), so a header counts as "current" right as it slides under
-    // both fixed bars.
-    const TRIGGER_LINE_PX = 150
+    // Trigger line sits just below the fixed StoreHeader (measured) plus the
+    // compact bonus banner row (~56px), so a header counts as "current" right
+    // as it slides under both fixed bars.
+    const TRIGGER_LINE_PX = headerHeight + 56
     let ticking = false
 
     const computeActiveCategory = () => {
@@ -441,7 +455,7 @@ const StorePage = () => {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
     }
-  }, [selectedCategory, sectionedVisibleItems])
+  }, [selectedCategory, sectionedVisibleItems, headerHeight])
 
   const setCategoryHeaderRef = useCallback((categoryId) => (element) => {
     if (!categoryId) return
@@ -593,6 +607,7 @@ const StorePage = () => {
   return (
     <main className="flex min-h-dvh flex-col overflow-hidden bg-app-bg">
       <StoreHeader
+        ref={headerRef}
         categories={categories}
         products={products}
         search={search}
@@ -604,7 +619,10 @@ const StorePage = () => {
         onSelectCategory={selectCategory}
       />
 
-      <section className="mx-auto mt-24 flex w-full max-w-7xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-4">
+      <section
+        className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-4"
+        style={{ marginTop: headerHeight }}
+      >
         {status && (
           <div
             className={`card-radius mb-4 shrink-0 border px-4 py-3 text-sm font-medium ${ToneClasses[status.tone]}`}
@@ -658,7 +676,7 @@ const StorePage = () => {
           if (selectedCategory === ALL_CATEGORIES) {
             return (
               <>
-                <div className="fixed top-24 right-0 left-0 z-10">
+                <div className="fixed right-0 left-0 z-10" style={{ top: headerHeight }}>
                   <div className="mx-auto w-full max-w-7xl px-4">
                     <div className="card-radius border border-app-accent bg-app-accent-soft px-4 py-3 shadow-soft">
                       {bonusBannerContent}

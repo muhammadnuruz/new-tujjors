@@ -1,5 +1,5 @@
 import { Menu, Search, ShoppingCart, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ALL_CATEGORIES,
   buildCategoryList,
@@ -21,7 +21,7 @@ const CategoryCount = ({ count, active }) => (
   </span>
 )
 
-const StoreHeader = ({
+const StoreHeader = forwardRef(({
   categories = [],
   subCategories = [],
   products = [],
@@ -32,7 +32,7 @@ const StoreHeader = ({
   selectedCategory,
   onSelectAllCategories,
   onSelectCategory,
-}) => {
+}, headerRef) => {
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const categoryTriggerRef = useRef(null)
   const categoryDrawerRef = useRef(null)
@@ -99,7 +99,10 @@ const StoreHeader = ({
 
   return (
     <>
-      <header className="fixed top-0 right-0 left-0 z-20 shrink-0 border-b border-app-border bg-app-surface">
+      <header
+        ref={headerRef}
+        className="fixed top-0 right-0 left-0 z-20 shrink-0 border-b border-app-border bg-app-surface"
+      >
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-4 md:flex-nowrap">
           <div ref={categoryTriggerRef} className="w-full md:w-auto">
             <button
@@ -238,6 +241,8 @@ const StoreHeader = ({
       )}
     </>
   )
-}
+})
+
+StoreHeader.displayName = 'StoreHeader'
 
 export default StoreHeader
