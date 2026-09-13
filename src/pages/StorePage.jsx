@@ -807,7 +807,7 @@ const StorePage = () => {
         type="button"
         onClick={() => setCartOpen(true)}
         aria-label="Savatni ochish"
-        className="fixed right-4 bottom-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-app-accent text-app-accent-contrast shadow-soft sm:right-6 sm:bottom-6"
+        className="fixed right-4 bottom-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-app-text text-app-surface shadow-soft sm:right-6 sm:bottom-6"
       >
         <ShoppingCart size={22} />
         {totalItems > 0 && (
